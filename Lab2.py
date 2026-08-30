@@ -1,7 +1,7 @@
 import random
 import sqlite3
 
-conn = sqlite3.connect('students_console.db')
+conn = sqlite3.connect('main.db')
 cursor = conn.cursor()
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS students (
@@ -17,7 +17,7 @@ conn.commit()
 
 while True:
     print("\n--- Menu ---")
-    print("1. Add Student | 2. View Students | 3. Delete Student | 0. Exit")
+    print("1. Add Student | 2. View Students | 3. Delete Student | 4. Manage Enrolled Subjects | 0. Exit")
     choice = input("Choice: ")
     
     if choice == '1':
@@ -91,6 +91,54 @@ while True:
                 print(f"Student '{student[0]}' (ID: {student_id_input}) deleted successfully.")
             else:
                 print("Error: Student ID not found.")
+        except ValueError:
+            print("Invalid format. Please use the format YYYY-ID (e.g., 2026-1).")
+
+    elif choice == '4':
+        print("\n--- Manage Enrolled Subjects ---")
+        student_id_input = input("Enter Student ID to manage subjects (e.g., 2026-1) or '0' to cancel: ")
+        
+        if student_id_input == '0':
+            continue
+            
+        try:
+            year, random_id = map(int, student_id_input.split('-'))
+            cursor.execute("SELECT name, subjects FROM students WHERE year = ? AND random_id = ?", (year, random_id))
+            student = cursor.fetchone()
+            
+            if not student:
+                print("Error: Student ID not found.")
+            else:
+                print(f"\nStudent: {student[0]}")
+                print(f"Current subjects: {student[1] or 'None'}")
+                print("1. Add subject")
+                print("2. Remove subject")
+                print("3. Back to main menu")
+                sub_choice = input("Choice: ")
+                
+                if sub_choice == '1':
+                    new_subject = input("Enter subject to add: ")
+                    subjects = (student[1] or "").split(", ") if student[1] else []
+                    if new_subject not in subjects:
+                        subjects.append(new_subject)
+                        subjects_str = ", ".join(subjects)
+                        cursor.execute("UPDATE students SET subjects = ? WHERE year = ? AND random_id = ?", (subjects_str, year, random_id))
+                        conn.commit()
+                        print(f"Subject '{new_subject}' added successfully.")
+                    else:
+                        print("Subject already enrolled.")
+                        
+                elif sub_choice == '2':
+                    remove_subject = input("Enter subject to remove: ")
+                    subjects = (student[1] or "").split(", ") if student[1] else []
+                    if remove_subject in subjects:
+                        subjects.remove(remove_subject)
+                        subjects_str = ", ".join(subjects) if subjects else ""
+                        cursor.execute("UPDATE students SET subjects = ? WHERE year = ? AND random_id = ?", (subjects_str, year, random_id))
+                        conn.commit()
+                        print(f"Subject '{remove_subject}' removed successfully.")
+                    else:
+                        print("Subject not found in enrollment.")
         except ValueError:
             print("Invalid format. Please use the format YYYY-ID (e.g., 2026-1).")
 

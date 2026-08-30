@@ -2,7 +2,7 @@ import sqlite3
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-conn = sqlite3.connect("students_console.db")
+conn = sqlite3.connect("main.db")
 cursor = conn.cursor()
 
 cursor.execute("""
@@ -20,13 +20,14 @@ conn.commit()
 
 root = tk.Tk()
 root.title("Student Information Management System")
-root.geometry("900x650")
+root.geometry("900x850")
 root.resizable(False, False)
 
 name_var = tk.StringVar()
 course_var = tk.StringVar()
 subject_var = tk.StringVar()
 student_id_var = tk.StringVar()
+student_id_manage_var = tk.StringVar()
 
 subjects = []
 
@@ -231,6 +232,151 @@ def clear_fields():
 
     subjects.clear()
     subject_listbox.delete(0, tk.END)
+
+
+def manage_subjects():
+    student_id_input = student_id_manage_var.get().strip()
+
+    if student_id_input == "":
+        messagebox.showwarning(
+            "Missing Student ID",
+            "Please enter a Student ID."
+        )
+        return
+
+    try:
+        year, random_id = map(
+            int,
+            student_id_input.split("-")
+        )
+
+        cursor.execute(
+            """
+            SELECT name, subjects
+            FROM students
+            WHERE year = ? AND random_id = ?
+            """,
+            (year, random_id)
+        )
+
+        student = cursor.fetchone()
+
+        if not student:
+            messagebox.showerror(
+                "Student Not Found",
+                "Student ID not found."
+            )
+            return
+
+        current_subjects = (student[1] or "").split(", ") if student[1] else []
+
+        subject_win = tk.Toplevel(root)
+        subject_win.title(f"Manage Subjects - {student[0]}")
+        subject_win.geometry("400x400")
+        subject_win.resizable(False, False)
+
+        tk.Label(
+            subject_win,
+            text=f"Student: {student[0]}",
+            font=("Arial", 12, "bold")
+        ).pack(pady=10)
+
+        tk.Label(
+            subject_win,
+            text="Current Subjects:"
+        ).pack(anchor="w", padx=20)
+
+        listbox = tk.Listbox(subject_win, width=40, height=8)
+        listbox.pack(padx=20, pady=5)
+
+        for s in current_subjects:
+            listbox.insert(tk.END, s)
+
+        subject_new_var = tk.StringVar()
+        tk.Entry(
+            subject_win,
+            textvariable=subject_new_var,
+            width=30
+        ).pack(padx=20, pady=5)
+
+        def add_subject():
+            new_sub = subject_new_var.get().strip()
+            if new_sub == "":
+                messagebox.showwarning(
+                    "Missing Subject",
+                    "Please enter a subject."
+                )
+                return
+            if new_sub not in current_subjects:
+                current_subjects.append(new_sub)
+                listbox.insert(tk.END, new_sub)
+                subject_new_var.set("")
+            else:
+                messagebox.showinfo(
+                    "Already Enrolled",
+                    f"'{new_sub}' is already enrolled."
+                )
+
+        def remove_subject():
+            selected = listbox.curselection()
+            if not selected:
+                messagebox.showwarning(
+                    "No Selection",
+                    "Please select a subject to remove."
+                )
+                return
+            index = selected[0]
+            removed = current_subjects.pop(index)
+            listbox.delete(index)
+            messagebox.showinfo(
+                "Removed",
+                f"'{removed}' has been removed."
+        )
+
+        btn_frame = tk.Frame(subject_win)
+        btn_frame.pack(pady=10)
+
+        tk.Button(
+            btn_frame,
+            text="Add Subject",
+            command=add_subject
+        ).pack(side=tk.LEFT, padx=5)
+
+        tk.Button(
+            btn_frame,
+            text="Remove Subject",
+            command=remove_subject
+        ).pack(side=tk.LEFT, padx=5)
+
+        tk.Button(
+            subject_win,
+            text="Save & Close",
+            command=lambda: [save_subjects(student[0], year, random_id, current_subjects), subject_win.destroy(), load_students()]
+        ).pack(pady=10)
+
+    except ValueError:
+        messagebox.showerror(
+            "Invalid Format",
+            "Please use the format YYYY-ID.\n\n"
+            "Example: 2026-1"
+        )
+
+
+def save_subjects(name, year, random_id, subjects):
+    subjects_str = ", ".join(subjects) if subjects else ""
+    cursor.execute(
+        """
+        UPDATE students
+        SET subjects = ?
+        WHERE year = ? AND random_id = ?
+        """,
+        (subjects_str, year, random_id)
+    )
+    conn.commit()
+    messagebox.showinfo(
+        "Saved",
+        f"Subjects for {name} have been updated."
+    )
 
 
 def close_program():
@@ -508,6 +654,53 @@ delete_button = tk.Button(
 )
 
 delete_button.grid(
+    row=0,
+    column=2,
+    padx=5
+)
+
+def on_row_click(event):
+    selected_item = student_table.selection()
+    if selected_item:
+        values = student_table.item(selected_item, "values")
+        if values:
+            student_id = values[0]
+            student_id_var.set(student_id)
+            student_id_manage_var.set(student_id)
+
+student_table.bind("<ButtonRelease-1>", on_row_click)
+
+manage_frame = tk.Frame(root)
+manage_frame.pack(pady=5)
+
+tk.Label(
+    manage_frame,
+    text="Student ID to Manage Subjects:"
+).grid(
+    row=0,
+    column=0,
+    padx=5
+)
+
+manage_entry = tk.Entry(
+    manage_frame,
+    textvariable=student_id_manage_var,
+    width=20
+)
+
+manage_entry.grid(
+    row=0,
+    column=1,
+    padx=5
+)
+
+manage_button = tk.Button(
+    manage_frame,
+    text="Manage Subjects",
+    command=manage_subjects
+)
+
+manage_button.grid(
     row=0,
     column=2,
     padx=5
